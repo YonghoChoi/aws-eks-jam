@@ -183,4 +183,3 @@ eksctl create iamidentitymapping \
 
 # cleanup
 rm -vf ${HOME}/.aws/credentials
-

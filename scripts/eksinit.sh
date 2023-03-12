@@ -72,7 +72,7 @@ aws cloud9 update-environment  --environment-id $C9_PID --managed-credentials-ac
 #   curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.24.10/2023-01-30/bin/linux/amd64/kubectl
 curl -o /tmp/kubectl https://s3.us-west-2.amazonaws.com/amazon-eks/1.24.10/2023-01-30/bin/linux/amd64/kubectl
 sudo mv /tmp/kubectl /usr/local/bin
-chmod +x /usr/local/bin/kubectl
+sudo chmod +x /usr/local/bin/kubectl
 
 
 # set kubectl as executable, move to path, populate kubectl bash-completion
@@ -94,12 +94,6 @@ curl -sSL https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 
 curl -Lo k9s.tgz https://github.com/derailed/k9s/releases/download/v0.27.3/k9s_Linux_amd64.tar.gz
 tar -xf k9s.tgz
 sudo install k9s /usr/local/bin/
-
-# Install kns and ktx
-git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
-~/.fzf/install --all
-sudo curl https://raw.githubusercontent.com/blendle/kns/master/bin/kns -o /usr/local/bin/kns && sudo chmod +x $_
-sudo curl https://raw.githubusercontent.com/blendle/kns/master/bin/ktx -o /usr/local/bin/ktx && sudo chmod +x $_
 
 # Install aliases
 echo "alias k='kubectl'" | tee -a ~/.bashrc
@@ -175,13 +169,13 @@ fi
 eksctl create iamidentitymapping \
   --cluster ${EKS_CLUSTER_NAME} \
   --arn arn:aws:iam::${ACCOUNT_ID}:role/TeamRole \
-#  --arn arn:aws:sts::${AWS::AccountId}:assumed-role/${LabUserRoleName}/team-console \
   --username cluster-admin \
   --group system:masters \
   --region ${AWS_REGION}
 
-# Create test bucket for EKSWorkshop IRSA lab
-aws s3 mb s3://eksworkshop-${ACCOUNT_ID}-${AWS_REGION}
 
 # cleanup
 rm -vf ${HOME}/.aws/credentials
+
+kubectl create namespace sock-shop
+kubectl apply -f https://raw.githubusercontent.com/YonghoChoi/aws-eks-jam/main/k8s/sockshop/deployment.yml

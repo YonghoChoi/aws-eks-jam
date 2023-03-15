@@ -179,3 +179,12 @@ rm -vf ${HOME}/.aws/credentials
 
 kubectl create namespace sock-shop
 kubectl apply -f https://raw.githubusercontent.com/YonghoChoi/aws-eks-jam/main/k8s/sockshop/deployment.yml
+
+
+mkdir -p manifests/alb-ingress-controller && cd manifests/alb-ingress-controller
+eksctl utils associate-iam-oidc-provider --region ${AWS_REGION} --cluster eks-demo --approve
+curl -o iam-policy.json https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.4.4/docs/install/iam_policy.json
+aws iam create-policy --policy-name AWSLoadBalancerControllerIAMPolicy --policy-document file://iam-policy.json
+eksctl create iamserviceaccount --cluster ${EKS_CLUSTER_NAME} --namespace kube-system --name aws-load-balancer-controller --attach-policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy --override-existing-serviceaccounts --approve
+kubectl apply --validate=false -f https://github.com/jetstack/cert-manager/releases/download/v1.5.4/cert-manager.yaml
+kubectl apply --validate=false -f https://raw.githubusercontent.com/YonghoChoi/aws-eks-jam/main/k8s/aws-lb-ctrl/v2_4_4_full.yaml

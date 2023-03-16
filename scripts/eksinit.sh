@@ -34,9 +34,9 @@ sudo yum history new
 sudo yum -y -q install jq
 
 # Install yq (yaml query)
-echo 'yq() {
-  docker run --rm -i -v "${PWD}":/workdir mikefarah/yq "$@"
-}' | tee -a ~/.bashrc && source ~/.bashrc
+#echo 'yq() {
+#  docker run --rm -i -v "${PWD}":/workdir mikefarah/yq "$@"
+#}' | tee -a ~/.bashrc && source ~/.bashrc
 
 # Install other utils:
 #   gettext: a framework to help other GNU packages product multi-language support. Part of GNU Translation Project.

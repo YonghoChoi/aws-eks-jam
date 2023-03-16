@@ -27,6 +27,8 @@
 ##  Tools Install ##
 ####################
 
+mkdir -p workspace && cd workspace
+
 # reset yum history
 sudo yum history new
 
@@ -34,9 +36,9 @@ sudo yum history new
 sudo yum -y -q install jq
 
 # Install yq (yaml query)
-#echo 'yq() {
-#  docker run --rm -i -v "${PWD}":/workdir mikefarah/yq "$@"
-#}' | tee -a ~/.bashrc && source ~/.bashrc
+echo 'yq() {
+  docker run --rm -i -v "${PWD}":/workdir mikefarah/yq "$@"
+}' | tee -a ~/.bash_profile && source ~/.bash_profile
 
 # Install other utils:
 #   gettext: a framework to help other GNU packages product multi-language support. Part of GNU Translation Project.
@@ -101,9 +103,8 @@ sudo mv /tmp/kubectl /usr/local/bin
 
 
 # set kubectl as executable, move to path, populate kubectl bash-completion
-chmod +x kubectl && sudo mv kubectl /usr/local/bin/
-echo "source <(kubectl completion bash)" >> ~/.bashrc
-echo "source <(kubectl completion bash | sed 's/kubectl/k/g')" >> ~/.bashrc
+echo "source <(kubectl completion bash)" >> ~/.bash_profile
+echo "source <(kubectl completion bash | sed 's/kubectl/k/g')" >> ~/.bash_profile
 
 # Install c9 for editing files in cloud9
 npm install -g c9
@@ -121,10 +122,10 @@ tar -xf k9s.tgz
 sudo install k9s /usr/local/bin/
 
 # Install aliases
-echo "alias k='kubectl'" | tee -a ~/.bashrc
-echo "alias kgp='kubectl get pods'" | tee -a ~/.bashrc
-echo "alias kgsvc='kubectl get svc'" | tee -a ~/.bashrc
-echo "alias kgn='kubectl get nodes -L beta.kubernetes.io/arch -L eks.amazonaws.com/capacityType -L beta.kubernetes.io/instance-type -L eks.amazonaws.com/nodegroup -L topology.kubernetes.io/zone -L karpenter.sh/provisioner-name -L karpenter.sh/capacity-type'" | tee -a ~/.bashrc
+echo "alias k='kubectl'" | tee -a ~/.bash_profile
+echo "alias kgp='kubectl get pods'" | tee -a ~/.bash_profile
+echo "alias kgsvc='kubectl get svc'" | tee -a ~/.bash_profile
+echo "alias kgn='kubectl get nodes -L beta.kubernetes.io/arch -L eks.amazonaws.com/capacityType -L beta.kubernetes.io/instance-type -L eks.amazonaws.com/nodegroup -L topology.kubernetes.io/zone -L karpenter.sh/provisioner-name -L karpenter.sh/capacity-type'" | tee -a ~/.bash_profile
 
 # Clone lab repositories
 #cd ~/environment
@@ -178,11 +179,10 @@ eksctl create iamidentitymapping \
 # cleanup
 rm -vf ${HOME}/.aws/credentials
 
-mkdir -p manifests && cd manifests
-wget https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.4.4/docs/install/iam_policy.json
-wget https://raw.githubusercontent.com/YonghoChoi/aws-eks-jam/main/k8s/sockshop/deployment.yml
-wget https://github.com/jetstack/cert-manager/releases/download/v1.5.4/cert-manager.yaml
-wget https://raw.githubusercontent.com/YonghoChoi/aws-eks-jam/main/k8s/aws-lb-ctrl/v2_4_4_full.yaml
+wget https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.4.4/docs/install/iam_policy.json -O iam_policy.json
+wget https://raw.githubusercontent.com/YonghoChoi/aws-eks-jam/main/k8s/sockshop/deployment.yml -O deployment.yml
+wget https://github.com/jetstack/cert-manager/releases/download/v1.5.4/cert-manager.yaml -O cert-manager.yaml
+wget https://raw.githubusercontent.com/YonghoChoi/aws-eks-jam/main/k8s/aws-lb-ctrl/v2_4_4_full.yaml -O v2_4_4_full.yaml
 
 kubectl create namespace sock-shop
 kubectl apply -f deployment.yml

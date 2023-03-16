@@ -188,7 +188,9 @@ kubectl create namespace sock-shop
 kubectl apply -f deployment.yml
 
 eksctl utils associate-iam-oidc-provider --region ${AWS_REGION} --cluster ${EKS_CLUSTER_NAME} --approve
-aws iam create-policy --policy-name AWSLoadBalancerControllerIAMPolicy --policy-document file://iam-policy.json
+aws iam create-policy --policy-name AWSLoadBalancerControllerIAMPolicy --policy-document file://iam_policy.json
 eksctl create iamserviceaccount --cluster ${EKS_CLUSTER_NAME} --region ${AWS_REGION} --namespace kube-system --name aws-load-balancer-controller --attach-policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy --override-existing-serviceaccounts --approve
 kubectl apply -f cert-manager.yaml
+kubectl wait --for=condition=ready pod -l app=webhook -n cert-manager
+sleep 10
 kubectl apply -f v2_4_4_full.yaml

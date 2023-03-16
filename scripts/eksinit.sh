@@ -53,8 +53,33 @@ unzip awscliv2.zip
 sudo ./aws/install
 rm awscliv2.zip
 
+
+######################
+##  Set Variables  ##
+#####################
+
+# Set AWS LB Controller version
+echo 'export LBC_VERSION="v2.4.1"' >>  ~/.bash_profile
+echo 'export LBC_CHART_VERSION="1.4.1"' >>  ~/.bash_profile
+.  ~/.bash_profile
+
+# Set AWS region in env and awscli config
+AWS_REGION=$(curl --silent http://169.254.169.254/latest/dynamic/instance-identity/document | jq -r .region)
+echo "export AWS_REGION=${AWS_REGION}" | tee -a ~/.bash_profile
+echo "export AWS_DEFAULT_REGION=${AWS_REGION}" | tee -a ~/.bash_profile
+
+# Set accountID
+ACCOUNT_ID=$(aws sts get-caller-identity --output text --query Account)
+echo "export ACCOUNT_ID=${ACCOUNT_ID}" | tee -a ~/.bash_profile
+
+# Set EKS cluster name
+EKS_CLUSTER_NAME=$(aws eks list-clusters --region ${AWS_REGION} --query clusters --output text)
+echo "export EKS_CLUSTER_NAME=${EKS_CLUSTER_NAME}" | tee -a ~/.bash_profile
+echo "export CLUSTER_NAME=${EKS_CLUSTER_NAME}" | tee -a ~/.bash_profile
+
+
 # Configure Cloud9 creds
-aws cloud9 update-environment  --environment-id $C9_PID --managed-credentials-action DISABLE
+aws cloud9 update-environment --region ${AWS_REGION} --environment-id $C9_PID --managed-credentials-action DISABLE
 
 # Install kubectl
 #  enable desired version by uncommenting the desired version below:
@@ -71,8 +96,8 @@ aws cloud9 update-environment  --environment-id $C9_PID --managed-credentials-ac
 #   Kubectl v1.24
 #   curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.24.10/2023-01-30/bin/linux/amd64/kubectl
 curl -o /tmp/kubectl https://s3.us-west-2.amazonaws.com/amazon-eks/1.24.10/2023-01-30/bin/linux/amd64/kubectl
+sudo chmod +x /tmp/kubectl
 sudo mv /tmp/kubectl /usr/local/bin
-sudo chmod +x /usr/local/bin/kubectl
 
 
 # set kubectl as executable, move to path, populate kubectl bash-completion
@@ -107,30 +132,6 @@ echo "alias kgn='kubectl get nodes -L beta.kubernetes.io/arch -L eks.amazonaws.c
 #git clone https://github.com/brentley/ecsdemo-nodejs.git
 #git clone https://github.com/brentley/ecsdemo-crystal.git
 #git clone https://github.com/aws-containers/eks-app-mesh-polyglot-demo.git
-
-
-######################
-##  Set Variables  ##
-#####################
-
-# Set AWS LB Controller version
-echo 'export LBC_VERSION="v2.4.1"' >>  ~/.bash_profile
-echo 'export LBC_CHART_VERSION="1.4.1"' >>  ~/.bash_profile
-.  ~/.bash_profile
-
-# Set AWS region in env and awscli config
-AWS_REGION=$(curl --silent http://169.254.169.254/latest/dynamic/instance-identity/document | jq -r .region)
-echo "export AWS_REGION=${AWS_REGION}" | tee -a ~/.bash_profile
-echo "export AWS_DEFAULT_REGION=${AWS_REGION}" | tee -a ~/.bash_profile
-
-# Set accountID
-ACCOUNT_ID=$(aws sts get-caller-identity --output text --query Account)
-echo "export ACCOUNT_ID=${ACCOUNT_ID}" | tee -a ~/.bash_profile
-
-# Set EKS cluster name
-EKS_CLUSTER_NAME=$(aws eks list-clusters --region ${AWS_REGION} --query clusters --output text)
-echo "export EKS_CLUSTER_NAME=${EKS_CLUSTER_NAME}" | tee -a ~/.bash_profile
-echo "export CLUSTER_NAME=${EKS_CLUSTER_NAME}" | tee -a ~/.bash_profile
 
 # Update kubeconfig and set cluster-related variables if an EKS cluster exists
 
@@ -177,14 +178,17 @@ eksctl create iamidentitymapping \
 # cleanup
 rm -vf ${HOME}/.aws/credentials
 
+mkdir -p manifests && cd manifests
+wget https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.4.4/docs/install/iam_policy.json
+wget https://raw.githubusercontent.com/YonghoChoi/aws-eks-jam/main/k8s/sockshop/deployment.yml
+wget https://github.com/jetstack/cert-manager/releases/download/v1.5.4/cert-manager.yaml
+wget https://raw.githubusercontent.com/YonghoChoi/aws-eks-jam/main/k8s/aws-lb-ctrl/v2_4_4_full.yaml
+
 kubectl create namespace sock-shop
-kubectl apply -f https://raw.githubusercontent.com/YonghoChoi/aws-eks-jam/main/k8s/sockshop/deployment.yml
+kubectl apply -f deployment.yml
 
-
-mkdir -p manifests/alb-ingress-controller && cd manifests/alb-ingress-controller
-eksctl utils associate-iam-oidc-provider --region ${AWS_REGION} --cluster eks-demo --approve
-curl -o iam-policy.json https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.4.4/docs/install/iam_policy.json
+eksctl utils associate-iam-oidc-provider --region ${AWS_REGION} --cluster ${EKS_CLUSTER_NAME} --approve
 aws iam create-policy --policy-name AWSLoadBalancerControllerIAMPolicy --policy-document file://iam-policy.json
-eksctl create iamserviceaccount --cluster ${EKS_CLUSTER_NAME} --namespace kube-system --name aws-load-balancer-controller --attach-policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy --override-existing-serviceaccounts --approve
-kubectl apply --validate=false -f https://github.com/jetstack/cert-manager/releases/download/v1.5.4/cert-manager.yaml
-kubectl apply --validate=false -f https://raw.githubusercontent.com/YonghoChoi/aws-eks-jam/main/k8s/aws-lb-ctrl/v2_4_4_full.yaml
+eksctl create iamserviceaccount --cluster ${EKS_CLUSTER_NAME} --region ${AWS_REGION} --namespace kube-system --name aws-load-balancer-controller --attach-policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy --override-existing-serviceaccounts --approve
+kubectl apply -f cert-manager.yaml
+kubectl apply -f v2_4_4_full.yaml

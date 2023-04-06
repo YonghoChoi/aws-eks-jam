@@ -44,7 +44,7 @@ echo 'yq() {
 #   gettext: a framework to help other GNU packages product multi-language support. Part of GNU Translation Project.
 #   bash-completion: supports command name auto-completion for supported commands
 #   moreutils: a growing collection of the unix tools that nobody thought to write long ago when unix was young
-sudo yum -y install gettext bash-completion moreutils
+sudo yum -y install gettext moreutils
 
 # Update awscli v1, just in case it's required
 pip install --user --upgrade awscli
@@ -103,8 +103,8 @@ sudo mv /tmp/kubectl /usr/local/bin
 
 
 # set kubectl as executable, move to path, populate kubectl bash-completion
-echo "source <(kubectl completion bash)" >> ~/.bash_profile
-echo "source <(kubectl completion bash | sed 's/kubectl/k/g')" >> ~/.bash_profile
+# echo "source <(kubectl completion bash)" >> ~/.bash_profile
+# echo "source <(kubectl completion bash | sed 's/kubectl/k/g')" >> ~/.bash_profile
 
 # Install c9 for editing files in cloud9
 npm install -g c9

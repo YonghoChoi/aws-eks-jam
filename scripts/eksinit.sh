@@ -13,7 +13,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
-  
+
 #title           eksinit-jam.sh
 #description     This script will setup the Cloud9 IDE with the prerequisite packages and code for the EKS JAM for AppMod
 #author          YoungJoon Jeong (@yjeong)
@@ -178,10 +178,10 @@ eksctl create iamidentitymapping \
   --group system:masters \
   --region ${AWS_REGION}
 
-wget https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.4.4/docs/install/iam_policy.json -O iam_policy.json
+wget https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.4.7/docs/install/iam_policy.json -O iam_policy.json
 wget https://raw.githubusercontent.com/YonghoChoi/aws-eks-jam/main/k8s/sockshop/deployment.yml -O deployment.yml
 wget https://github.com/jetstack/cert-manager/releases/download/v1.5.4/cert-manager.yaml -O cert-manager.yaml
-wget https://github.com/kubernetes-sigs/aws-load-balancer-controller/releases/download/v2.5.4/v2_5_4_full.yaml -O aws-lb-ctrl.yaml
+wget https://github.com/kubernetes-sigs/aws-load-balancer-controller/releases/download/v2.4.7/v2_4_7_full.yaml -O aws-lb-ctrl.yaml
 sed -e "s/your-cluster-name/$EKS_CLUSTER_NAME/g" aws-lb-ctrl.yaml
 
 kubectl create namespace sock-shop

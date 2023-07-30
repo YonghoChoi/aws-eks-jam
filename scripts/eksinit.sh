@@ -182,7 +182,7 @@ wget https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-control
 wget https://raw.githubusercontent.com/YonghoChoi/aws-eks-jam/main/k8s/sockshop/deployment.yml -O deployment.yml
 wget https://github.com/jetstack/cert-manager/releases/download/v1.5.4/cert-manager.yaml -O cert-manager.yaml
 wget https://github.com/kubernetes-sigs/aws-load-balancer-controller/releases/download/v2.4.7/v2_4_7_full.yaml -O aws-lb-ctrl.yaml
-sed -e "s/your-cluster-name/$EKS_CLUSTER_NAME/g" aws-lb-ctrl.yaml
+sed -i "s/your-cluster-name/$EKS_CLUSTER_NAME/g" aws-lb-ctrl.yaml
 
 kubectl create namespace sock-shop
 kubectl apply -f deployment.yml

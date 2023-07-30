@@ -167,6 +167,9 @@ then
 
 fi
 
+# cleanup
+rm -vf ${HOME}/.aws/credentials
+
 # Update aws-auth ConfigMap granting cluster-admin to TeamRole (cluster creator is "eksworkshop-admin")
 eksctl create iamidentitymapping \
   --cluster ${EKS_CLUSTER_NAME} \
@@ -175,22 +178,22 @@ eksctl create iamidentitymapping \
   --group system:masters \
   --region ${AWS_REGION}
 
-
-# cleanup
-rm -vf ${HOME}/.aws/credentials
-
 wget https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.4.4/docs/install/iam_policy.json -O iam_policy.json
 wget https://raw.githubusercontent.com/YonghoChoi/aws-eks-jam/main/k8s/sockshop/deployment.yml -O deployment.yml
 wget https://github.com/jetstack/cert-manager/releases/download/v1.5.4/cert-manager.yaml -O cert-manager.yaml
-wget https://raw.githubusercontent.com/YonghoChoi/aws-eks-jam/main/k8s/aws-lb-ctrl/v2_4_4_full.yaml -O v2_4_4_full.yaml
+wget https://github.com/kubernetes-sigs/aws-load-balancer-controller/releases/download/v2.5.4/v2_5_4_full.yaml -O aws-lb-ctrl.yaml
+sed -e "s/your-cluster-name/$EKS_CLUSTER_NAME/g" aws-lb-ctrl.yaml
 
 kubectl create namespace sock-shop
 kubectl apply -f deployment.yml
 
 eksctl utils associate-iam-oidc-provider --region ${AWS_REGION} --cluster ${EKS_CLUSTER_NAME} --approve
 aws iam create-policy --policy-name AWSLoadBalancerControllerIAMPolicy --policy-document file://iam_policy.json
-eksctl create iamserviceaccount --cluster ${EKS_CLUSTER_NAME} --region ${AWS_REGION} --namespace kube-system --name aws-load-balancer-controller --attach-policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy --override-existing-serviceaccounts --approve
 kubectl apply -f cert-manager.yaml
 kubectl wait --for=condition=ready pod -l app=webhook -n cert-manager
 sleep 10
-kubectl apply -f v2_4_4_full.yaml
+
+kubectl apply -f aws-lb-ctrl.yaml
+kubectl delete sa aws-load-balancer-controller -n kube-system 
+eksctl create iamserviceaccount --cluster ${EKS_CLUSTER_NAME} --region ${AWS_REGION} --namespace kube-system --name aws-load-balancer-controller --attach-policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy --override-existing-serviceaccounts --approve
+

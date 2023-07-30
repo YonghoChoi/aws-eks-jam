@@ -193,7 +193,6 @@ kubectl apply -f cert-manager.yaml
 kubectl wait --for=condition=ready pod -l app=webhook -n cert-manager
 sleep 10
 
-kubectl apply -f aws-lb-ctrl.yaml
-kubectl delete sa aws-load-balancer-controller -n kube-system 
 eksctl create iamserviceaccount --cluster ${EKS_CLUSTER_NAME} --region ${AWS_REGION} --namespace kube-system --name aws-load-balancer-controller --attach-policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy --override-existing-serviceaccounts --approve
 
+kubectl apply -f aws-lb-ctrl.yaml

@@ -13,7 +13,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
-
+  
 #title           eksinit-jam.sh
 #description     This script will setup the Cloud9 IDE with the prerequisite packages and code for the EKS JAM for AppMod
 #author          YoungJoon Jeong (@yjeong)

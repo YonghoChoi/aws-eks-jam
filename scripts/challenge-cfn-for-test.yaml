@@ -186,14 +186,6 @@ Resources:
                 - aws eks update-kubeconfig --name ${EKSClusterName} --region ${AWS::Region}
                 - eksctl create iamidentitymapping --cluster ${EKSClusterName} --region ${AWS::Region} --arn arn:aws:iam::${AWS::AccountId}:role/AWSJamTaskValidationLambdaRole --group system:masters --username admin
                 - eksctl utils associate-iam-oidc-provider --region ${AWS::Region} --cluster eks-demo --approve
-                - curl -o iam-policy.json https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.4.4/docs/install/iam_policy.json
-                - aws iam create-policy --policy-name AWSLoadBalancerControllerIAMPolicyForJAM --policy-document file://iam-policy.json
-                - eksctl create iamserviceaccount --cluster ${EKSClusterName} --namespace kube-system --name aws-load-balancer-controller --attach-policy-arn arn:aws:iam::${AWS::AccountId}:policy/AWSLoadBalancerControllerIAMPolicyForJAM --override-existing-serviceaccounts --approve
-                - curl -Lo v2_5_4_full.yaml https://github.com/kubernetes-sigs/aws-load-balancer-controller/releases/download/v2.5.4/v2_5_4_full.yaml
-                - sed -i.bak -e '596,604d' ./v2_5_4_full.yaml
-                - sed -i.bak -e "s|your-cluster-name|$EKSClusterName|" ./v2_5_4_full.yaml
-                - kubectl apply -f v2_5_4_full.yaml
-                - kubectl apply -f https://github.com/kubernetes-sigs/aws-load-balancer-controller/releases/download/v2.5.4/v2_5_4_ingclass.yaml
             post_build:
               commands:
                 # CODEBUILD_BUILD_SUCCEEDING = 1 Set to 0 if the build is failing, or 1 if the build is succeeding.

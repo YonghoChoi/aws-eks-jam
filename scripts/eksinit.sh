@@ -167,25 +167,20 @@ then
 
 fi
 
-# cleanup
-rm -vf ${HOME}/.aws/credentials
-
 wget https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.4.7/docs/install/iam_policy.json -O iam_policy.json
 aws iam create-policy --policy-name AWSLoadBalancerControllerIAMPolicy --policy-document file://iam_policy.json
-kubectl apply -f cert-manager.yaml
+eksctl create iamserviceaccount --cluster ${EKS_CLUSTER_NAME} --region ${AWS_REGION} --namespace kube-system --name aws-load-balancer-controller --attach-policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy --override-existing-serviceaccounts --approve
+
+# https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.6/deploy/installation/
+kubectl apply --validate=false -f https://github.com/jetstack/cert-manager/releases/download/v1.5.4/cert-manager.yaml
 kubectl wait --for=condition=ready pod -l app=webhook -n cert-manager
 sleep 10
 
-eksctl create iamserviceaccount --cluster ${EKS_CLUSTER_NAME} --region ${AWS_REGION} --namespace kube-system --name aws-load-balancer-controller --attach-policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy --override-existing-serviceaccounts --approve
-
-wget https://raw.githubusercontent.com/YonghoChoi/aws-eks-jam/main/k8s/sockshop/deployment.yml -O deployment.yml
-wget https://github.com/jetstack/cert-manager/releases/download/v1.12.0/cert-manager.yaml -O cert-manager.yaml
-wget https://github.com/kubernetes-sigs/aws-load-balancer-controller/releases/download/v2.5.4/v2_5_4_full.yaml -O aws-lb-ctrl.yaml
+wget https://github.com/kubernetes-sigs/aws-load-balancer-controller/releases/download/v2.6.1/v2_6_1_full.yaml -O aws-lb-ctrl.yaml
 sed -i.bak -e '596,604d' ./aws-lb-ctrl.yaml
 sed -i.bak -e "s|your-cluster-name|$EKS_CLUSTER_NAME|" ./aws-lb-ctrl.yaml
 kubectl apply -f aws-lb-ctrl.yaml
-kubectl apply -f https://github.com/kubernetes-sigs/aws-load-balancer-controller/releases/download/v2.5.4/v2_5_4_ingclass.yaml
+kubectl apply -f https://github.com/kubernetes-sigs/aws-load-balancer-controller/releases/download/v2.6.1/v2_6_1_ingclass.yaml
 
 kubectl create namespace sock-shop
-kubectl apply -f deployment.yml
-
+kubectl apply -f https://raw.githubusercontent.com/YonghoChoi/aws-eks-jam/main/k8s/sockshop/deployment.yml

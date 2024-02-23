@@ -182,5 +182,6 @@ sed -i.bak -e "s|your-cluster-name|$EKS_CLUSTER_NAME|" ./aws-lb-ctrl.yaml
 kubectl apply -f aws-lb-ctrl.yaml
 kubectl apply -f https://github.com/kubernetes-sigs/aws-load-balancer-controller/releases/download/v2.6.1/v2_6_1_ingclass.yaml
 
+sleep 30
 kubectl create namespace sock-shop
 kubectl apply -f https://raw.githubusercontent.com/YonghoChoi/aws-eks-jam/main/k8s/sockshop/deployment.yml

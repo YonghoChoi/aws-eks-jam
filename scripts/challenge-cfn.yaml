@@ -65,6 +65,7 @@ Resources:
     Properties:
       Description: "key for EKS secrets encryption"
       Enabled: true
+      EnableKeyRotation: true
       KeyPolicy:
         Version: '2012-10-17'
         Id: key-default-1
@@ -73,7 +74,21 @@ Resources:
           Effect: Allow
           Principal:
             AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
-          Action: kms:*
+          Action:
+          - kms:Create*
+          - kms:Describe*
+          - kms:Enable*
+          - kms:List*
+          - kms:Put*
+          - kms:Update*
+          - kms:Revoke*
+          - kms:Disable*
+          - kms:Get*
+          - kms:Delete*
+          - kms:TagResource
+          - kms:UntagResource
+          - kms:ScheduleKeyDeletion
+          - kms:CancelKeyDeletion
           Resource: '*'
 
   BuildProject:
@@ -241,7 +256,17 @@ Resources:
           Statement:
           - Effect: Allow
             Action:
-            - codebuild:*
+            - codebuild:StartBuild
+            - codebuild:StopBuild
+            - codebuild:StartBuildBatch
+            - codebuild:StopBuildBatch
+            - codebuild:RetryBuild
+            - codebuild:RetryBuildBatch
+            - codebuild:BatchGet*
+            - codebuild:GetResourcePolicy
+            - codebuild:DescribeTestCases
+            - codebuild:DescribeCodeCoverages
+            - codebuild:List*
             Resource: !GetAtt BuildProject.Arn
 
   TriggerBuildLambda:
@@ -250,7 +275,7 @@ Resources:
       Description: function to retrieve User info
       Handler: index.handler
       Role: !GetAtt TriggerBuildLambdaIamRole.Arn
-      Runtime: python3.7
+      Runtime: python3.12
       Code:
         ZipFile: |
           import boto3
@@ -382,7 +407,15 @@ Resources:
         Statement:
         - Effect: Allow
           Action:
-          - dynamodb:*
+          - dynamodb:PutItem
+          - dynamodb:UpdateItem
+          - dynamodb:DeleteItem
+          - dynamodb:BatchWriteItem
+          - dynamodb:GetItem
+          - dynamodb:BatchGetItem
+          - dynamodb:Scan
+          - dynamodb:Query
+          - dynamodb:ConditionCheckIte
           Resource:
           - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/eks-challenge-carts'
           - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/eks-challenge-carts/index/*'

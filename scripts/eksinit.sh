@@ -67,6 +67,9 @@ echo 'export LBC_CHART_VERSION="1.4.1"' >>  ~/.bash_profile
 
 # Set AWS region in env and awscli config
 AWS_REGION=$(aws configure get region)
+if [ "$AWS_REGION" = "" ]; then
+  AWS_REGION=us-west-2
+fi
 echo "export AWS_REGION=${AWS_REGION}" | tee -a ~/.bash_profile
 echo "export AWS_DEFAULT_REGION=${AWS_REGION}" | tee -a ~/.bash_profile
 

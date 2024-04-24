@@ -68,7 +68,7 @@ echo 'export LBC_CHART_VERSION="1.4.1"' >>  ~/.bash_profile
 # Set AWS region in env and awscli config
 AWS_REGION=$(aws configure get region)
 if [ "$AWS_REGION" = "" ]; then
-  AWS_REGION=us-west-2
+  AWS_REGION=us-east-1
 fi
 echo "export AWS_REGION=${AWS_REGION}" | tee -a ~/.bash_profile
 echo "export AWS_DEFAULT_REGION=${AWS_REGION}" | tee -a ~/.bash_profile
@@ -79,6 +79,9 @@ echo "export ACCOUNT_ID=${ACCOUNT_ID}" | tee -a ~/.bash_profile
 
 # Set EKS cluster name
 EKS_CLUSTER_NAME=$(aws eks list-clusters --region ${AWS_REGION} --query clusters --output text)
+if [ "$EKS_CLUSTER_NAME" = "" ]; then
+  EKS_CLUSTER_NAME=eks-demo
+fi
 echo "export EKS_CLUSTER_NAME=${EKS_CLUSTER_NAME}" | tee -a ~/.bash_profile
 echo "export CLUSTER_NAME=${EKS_CLUSTER_NAME}" | tee -a ~/.bash_profile
 

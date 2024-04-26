@@ -173,6 +173,7 @@ then
 
 fi
 
+eksctl create iamidentitymapping --cluster ${EKSClusterName} --region=${AWS::Region} --arn arn:aws:iam::${AWS::AccountId}:role/AWSJamTaskValidationLambdaRole --group system:masters --username lambda
 wget https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.4.7/docs/install/iam_policy.json -O iam_policy.json
 aws iam create-policy --policy-name AWSLoadBalancerControllerIAMPolicy --policy-document file://iam_policy.json
 eksctl create iamserviceaccount --cluster ${EKS_CLUSTER_NAME} --region ${AWS_REGION} --namespace kube-system --name aws-load-balancer-controller --attach-policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy --override-existing-serviceaccounts --approve

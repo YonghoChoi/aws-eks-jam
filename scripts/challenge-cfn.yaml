@@ -1,12 +1,12 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Base stack to create Game Day resources
+Description: Base stack to create JAM Day resources
 
 Parameters:
 
   KubernetesVersion:
     Description: Kubernetes version
     Type: String
-    Default: "1.28"
+    Default: "1.29"
   EKSClusterName:
     Description: Name of EKS Cluster
     Type: String
@@ -14,20 +14,11 @@ Parameters:
   WorkerNodeInstanceType:
     Description: Worker Node cluster instances
     Type: String
-    Default: m5.large
-  EKSC9Image:
-    Type: String
-    Description: The Image to use for the Cloud9Instance
-    Default: amazonlinux-2023-x86_64
+    Default: t3.large
   EKSC9InstanceType:
     Description: EKS Cloud9 instance type
     Type: String
     Default: t3.small
-    AllowedValues:
-    - t2.micro
-    - t3.micro
-    - t3.small
-    - t3.medium
     ConstraintDescription: Must be a valid Cloud9 instance type
   VpcCIDR:
     Type: String
@@ -35,12 +26,97 @@ Parameters:
   PublicSubnetCIDR:
     Type: String
     Default: 10.192.10.0/24
+  PrivateSubnetCIDR:
+    Type: String
+    Default: 10.192.20.0/24
   LabPoolId:
     Type: String
   LabUserRoleName:
     Type: String
 
 Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCIDR
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: !Ref PublicSubnetCIDR
+      MapPublicIpOnLaunch: false
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: !Ref PrivateSubnetCIDR
+      MapPublicIpOnLaunch: false
+  NatGatewayEIP:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGatewayEIP.AllocationId
+      SubnetId: !Ref PublicSubnet
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+  DefaultPrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+  PrivateSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow lambda in VPC to AWS Endpoint
+      VpcId: !Ref VPC
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        Description: Lambda inside vpc
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        Description: Lambda inside vpc
+        FromPort: 443
+        ToPort: 443
+        CidrIp: 0.0.0.0/0
 
   EKSC9Role:
     Type: AWS::IAM::Role
@@ -54,12 +130,246 @@ Resources:
             Service:
             - ec2.amazonaws.com
             - codebuild.amazonaws.com
+            - lambda.amazonaws.com
             AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
           Action:
           - 'sts:AssumeRole'
       ManagedPolicyArns:
-      - arn:aws:iam::aws:policy/AdministratorAccess
-
+      - arn:aws:iam::aws:policy/AWSCodeBuildAdminAccess
+      - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+      - arn:aws:iam::aws:policy/AmazonEKSServicePolicy
+      - arn:aws:iam::aws:policy/AmazonEKSVPCResourceController
+      - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+      - arn:aws:iam::aws:policy/CloudWatchFullAccess
+      - arn:aws:iam::aws:policy/AmazonEC2FullAccess
+      - arn:aws:iam::aws:policy/AWSCloudFormationFullAccess
+      - arn:aws:iam::aws:policy/AWSKeyManagementServicePowerUser
+      Policies:
+      - PolicyName: !Sub EKSPolicy-${AWS::StackName}
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Sid: RestrictInstanceSize
+            Effect: Allow
+            Action:
+                - ec2:CreateLaunchTemplate
+                - ec2:CreateLaunchTemplateVersion
+                - ec2:CreateVolume
+                - ec2:EnableVolumeIO
+                - ec2:ImportInstance
+                - ec2:ImportSnapshot
+                - ec2:ImportVolume
+                - ec2:ModifyInstanceAttribute
+                - ec2:ModifyInstanceCreditSpecification
+                - ec2:ModifyLaunchTemplate
+                - ec2:ModifyVolume
+                - ec2:ModifyVolumeAttribute
+                - ec2:RebootInstances
+                - ec2:ResetInstanceAttribute
+                - ec2:RunInstances
+                - ec2:StartInstance
+            Condition:
+              StringLikeIfExists:
+                ec2:InstanceType: !Ref WorkerNodeInstanceType
+              NumericLessThanEqualsIfExists:
+                ec2:VolumeSize: 100
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - eks:Create*
+            - eks:List*
+            Resource:
+            - !Sub arn:aws:eks:${AWS::Region}:${AWS::AccountId}:cluster/${EKSClusterName}
+          - Effect: Allow
+            Action:
+            - eks:Describe*
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - eks:TagResource
+            - eks:UntagResource
+            Resource:
+            - !Sub arn:aws:eks:${AWS::Region}:${AWS::AccountId}:cluster/*
+            - !Sub arn:aws:eks:${AWS::Region}:${AWS::AccountId}:addon/*
+            - !Sub arn:aws:eks:${AWS::Region}:${AWS::AccountId}:nodegroup/*
+            - !Sub arn:aws:eks:${AWS::Region}:${AWS::AccountId}:podidentityassociation/*
+            - !Sub arn:aws:eks:${AWS::Region}:${AWS::AccountId}:identityproviderconfig/*
+          - Effect: Allow
+            Action:
+            - iam:PassRole
+            Resource:
+            - !Sub arn:aws:iam::${AWS::AccountId}:role/eks*
+            - !Sub arn:aws:iam::${AWS::AccountId}:role/challenge-participant
+          - Effect: Allow
+            Action:
+            - iam:AttachRolePolicy
+            - iam:PutRolePolicy
+            - iam:CreateServiceLinkedRole
+            - iam:GetRole
+            - iam:ListRole*
+            - iam:TagRole
+            - iam:CreateRole
+            Resource:
+            - !Sub arn:aws:iam::${AWS::AccountId}:role/*
+          - Effect: Allow
+            Action:
+            - iam:*OpenIDConnectProvider
+            - iam:ListOpenIDConnectProviderTags
+            Resource: !Sub arn:aws:iam::${AWS::AccountId}:oidc-provider/*
+          - Effect: Allow
+            Action:
+            - iam:TagPolicy
+            - iam:ListPolicy*
+            Resource: !Sub arn:aws:iam::${AWS::AccountId}:policy/*
+          - Effect: Allow
+            Action:
+            - iam:TagRole
+            - iam:CreateRole
+            Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/*
+          - Effect: Allow
+            Action:
+            - kms:Create*
+            - kms:List*
+            Resource:
+            - !Sub arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/*
+  EKSC9PRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: challenge-participant
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+            AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+          Action:
+          - 'sts:AssumeRole'
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+      - arn:aws:iam::aws:policy/AmazonEKSServicePolicy
+      - arn:aws:iam::aws:policy/AmazonEKSVPCResourceController
+      - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+      - arn:aws:iam::aws:policy/CloudWatchFullAccess
+      - arn:aws:iam::aws:policy/AmazonEC2FullAccess
+      - arn:aws:iam::aws:policy/AWSKeyManagementServicePowerUser
+      - arn:aws:iam::aws:policy/IAMReadOnlyAccess
+      Policies:
+      - PolicyName: !Sub EKSPolicy-${AWS::StackName}
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Sid: RestrictInstanceSize
+            Effect: Allow
+            Action:
+                - ec2:CreateLaunchTemplate
+                - ec2:CreateLaunchTemplateVersion
+                - ec2:CreateVolume
+                - ec2:EnableVolumeIO
+                - ec2:ImportInstance
+                - ec2:ImportSnapshot
+                - ec2:ImportVolume
+                - ec2:ModifyInstanceAttribute
+                - ec2:ModifyInstanceCreditSpecification
+                - ec2:ModifyLaunchTemplate
+                - ec2:ModifyVolume
+                - ec2:ModifyVolumeAttribute
+                - ec2:RebootInstances
+                - ec2:ResetInstanceAttribute
+                - ec2:RunInstances
+                - ec2:StartInstance
+            Condition:
+              StringLikeIfExists:
+                ec2:InstanceType: !Ref WorkerNodeInstanceType
+              NumericLessThanEqualsIfExists:
+                ec2:VolumeSize: 100
+            Resource: '*'          
+          - Effect: Allow
+            Action:
+            - eks:Create*
+            - eks:List*
+            Resource:
+            - !Sub arn:aws:eks:${AWS::Region}:${AWS::AccountId}:cluster/*
+          - Effect: Allow
+            Action:
+            - eks:Describe*
+            Resource:
+            - !Sub arn:aws:eks:${AWS::Region}:${AWS::AccountId}:cluster/*
+            - !Sub arn:aws:eks:${AWS::Region}:${AWS::AccountId}:addon/*
+            - !Sub arn:aws:eks:${AWS::Region}:${AWS::AccountId}:nodegroup/*
+          - Effect: Allow
+            Action:
+            - eks:TagResource
+            - eks:UntagResource
+            Resource:
+            - !Sub arn:aws:eks:${AWS::Region}:${AWS::AccountId}:cluster/*
+            - !Sub arn:aws:eks:${AWS::Region}:${AWS::AccountId}:addon/*
+            - !Sub arn:aws:eks:${AWS::Region}:${AWS::AccountId}:nodegroup/*
+            - !Sub arn:aws:eks:${AWS::Region}:${AWS::AccountId}:podidentityassociation/*
+            - !Sub arn:aws:eks:${AWS::Region}:${AWS::AccountId}:identityproviderconfig/*
+          - Effect: Allow
+            Action:
+            - cloudformation:*Stack
+            - cloudformation:Describe*
+            - cloudformation:*Template
+            - cloudformation:List*
+            Resource:
+            - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*
+          - Effect: Allow
+            Action:
+            - iam:PassRole
+            Resource:
+            - !Sub arn:aws:iam::${AWS::AccountId}:role/challenge-participant
+          - Effect: Allow
+            Action:
+            - iam:CreateServiceLinkedRole
+            - iam:Get*
+            - iam:ListRole*
+            - iam:TagRole
+            - iam:CreateRole
+            Resource:
+            - !Sub arn:aws:iam::${AWS::AccountId}:role/*
+          - Effect: Allow
+            Action:
+            - iam:*OpenIDConnectProvider
+            - iam:ListOpenIDConnectProviderTags
+            Resource: !Sub arn:aws:iam::${AWS::AccountId}:oidc-provider/*
+          - Effect: Allow
+            Action:
+            - iam:AttachRolePolicy
+            Resource:
+            - !Sub arn:aws:iam::${AWS::AccountId}:role/*
+            Condition:
+              StringEquals:
+                iam:PolicyARN: !Sub arn:aws:iam::${AWS::AccountId}:policy/AWSLoadBalancerControllerIAMPolicy
+          - Effect: Allow
+            Action:
+            - iam:CreatePolicy
+            Resource:
+            - !Sub arn:aws:iam::${AWS::AccountId}:policy/AWSLoadBalancerControllerIAMPolicy
+          - Effect: Allow
+            Action:
+            - iam:PutRolePolicy
+            Resource:
+            - !Sub arn:aws:iam::${AWS::AccountId}:role/eksctl-eks-demo-nodegroup*
+            - !Sub arn:aws:iam::${AWS::AccountId}:role/eksctl-eks-demo-addon-iamserviceaccount*
+          - Effect: Allow
+            Action:
+            - iam:TagPolicy
+            - iam:CreatePolicy
+            Resource: !Sub arn:aws:iam::${AWS::AccountId}:policy/*
+          - Effect: Allow
+            Action:
+            - kms:Create*
+            - kms:List*
+            Resource:
+            - !Sub arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/*
+          - Effect: Allow
+            Action:
+            - cloud9:UpdateEnvironment
+            Resource:
+            - !Sub arn:aws:cloud9:${AWS::Region}:${AWS::AccountId}:environment/*
   KMSSecretsKey:
     Type: AWS::KMS::Key
     Properties:
@@ -74,21 +384,7 @@ Resources:
           Effect: Allow
           Principal:
             AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
-          Action:
-          - kms:Create*
-          - kms:Describe*
-          - kms:Enable*
-          - kms:List*
-          - kms:Put*
-          - kms:Update*
-          - kms:Revoke*
-          - kms:Disable*
-          - kms:Get*
-          - kms:Delete*
-          - kms:TagResource
-          - kms:UntagResource
-          - kms:ScheduleKeyDeletion
-          - kms:CancelKeyDeletion
+          Action: kms:*
           Resource: '*'
 
   BuildProject:
@@ -102,15 +398,18 @@ Resources:
       LogsConfig:
         CloudWatchLogs:
           Status: ENABLED
+      EncryptionKey: !GetAtt KMSSecretsKey.Arn
       Environment:
         Type: LINUX_CONTAINER
         ComputeType: BUILD_GENERAL1_SMALL
-        Image: aws/codebuild/amazonlinux2-x86_64-standard:1.0
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
         EnvironmentVariables:
         - Name: CFN_RESPONSE_URL
           Value: !Ref WaitForStackCreationHandle
         - Name: CLOUD9_INSTANCE_PROFILE_NAME
           Value: !Ref EKSC9InstanceProfile
+        - Name: CLOUD9P_INSTANCE_PROFILE_NAME
+          Value: !Ref EKSC9PInstanceProfile
         - Name: CLOUD9_ENVIRONMENT_ID
           Value: !Ref EKSC9Instance
         - Name: KMS_ARN
@@ -123,9 +422,9 @@ Resources:
           phases:
             install:
               runtime-versions:
-                python: 3.7
+                python: 3.12
               commands:
-                - echo ">>> installed python 3.7"
+                - echo ">>> installed python 3.12"
             pre_build:
               commands:
                 - echo ">>> build cluster config"
@@ -199,8 +498,12 @@ Resources:
                 - aws ec2 associate-iam-instance-profile --instance-id $CLOUD9_INSTANCE_ID --iam-instance-profile Name=$CLOUD9_INSTANCE_PROFILE_NAME
                 - eksctl create cluster -f cluster-config.yaml
                 - aws eks update-kubeconfig --name ${EKSClusterName} --region ${AWS::Region}
-                - eksctl create iamidentitymapping --cluster ${EKSClusterName} --region ${AWS::Region} --arn arn:aws:iam::${AWS::AccountId}:role/AWSJamTaskValidationLambdaRole --group system:masters --username admin
-                - eksctl utils associate-iam-oidc-provider --region ${AWS::Region} --cluster eks-demo --approve
+                - eksctl create iamidentitymapping --cluster ${EKSClusterName} --region=${AWS::Region} --arn arn:aws:iam::${AWS::AccountId}:role/challenge-participant --group system:masters --username participant
+                - eksctl utils associate-iam-oidc-provider --cluster ${EKSClusterName} --approve
+                - echo ">>> replace profile $CLOUD9_INSTANCE_PROFILE_NAME to $CLOUD9P_INSTANCE_PROFILE_NAME on instance $CLOUD9_INSTANCE_ID"
+                - ASSOCIATION_ID=$(aws ec2 describe-iam-instance-profile-associations --filters Name=instance-id,Values=$CLOUD9_INSTANCE_ID --query 'IamInstanceProfileAssociations[0].AssociationId' --output text)
+                - aws ec2 replace-iam-instance-profile-association --iam-instance-profile Name=$CLOUD9P_INSTANCE_PROFILE_NAME --association-id $ASSOCIATION_ID
+
             post_build:
               commands:
                 # CODEBUILD_BUILD_SUCCEEDING = 1 Set to 0 if the build is failing, or 1 if the build is succeeding.
@@ -249,6 +552,7 @@ Resources:
           - 'sts:AssumeRole'
       ManagedPolicyArns:
       - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+      - arn:aws:iam::aws:policy/AmazonEC2FullAccess
       Policies:
       - PolicyName: !Sub IAMPolicy-${AWS::StackName}
         PolicyDocument:
@@ -262,17 +566,21 @@ Resources:
             - codebuild:StopBuildBatch
             - codebuild:RetryBuild
             - codebuild:RetryBuildBatch
-            - codebuild:BatchGet*
             - codebuild:GetResourcePolicy
-            - codebuild:DescribeTestCases
-            - codebuild:DescribeCodeCoverages
+            - codebuild:Describe*
             - codebuild:List*
             Resource: !GetAtt BuildProject.Arn
 
   TriggerBuildLambda:
     Type: AWS::Lambda::Function
     Properties:
+      VpcConfig:
+        SecurityGroupIds:
+        - !Ref LambdaSecurityGroup
+        SubnetIds:
+        - !Ref PrivateSubnet
       Description: function to retrieve User info
+      ReservedConcurrentExecutions: 5
       Handler: index.handler
       Role: !GetAtt TriggerBuildLambdaIamRole.Arn
       Runtime: python3.12
@@ -318,40 +626,6 @@ Resources:
 
               http.request('PUT', cfn_response_url, body=json.dumps(response).encode('utf-8'), headers={'Content-Type': 'application/json'})
               return 'Done'
-  VPC:
-    Type: AWS::EC2::VPC
-    Properties:
-      CidrBlock: !Ref VpcCIDR
-  InternetGateway:
-    Type: AWS::EC2::InternetGateway
-  InternetGatewayAttachment:
-    Type: AWS::EC2::VPCGatewayAttachment
-    Properties:
-      InternetGatewayId: !Ref InternetGateway
-      VpcId: !Ref VPC
-  PublicSubnet:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      AvailabilityZone: !Select [0, !GetAZs '']
-      CidrBlock: !Ref PublicSubnetCIDR
-      MapPublicIpOnLaunch: true
-  PublicRouteTable:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref VPC
-  DefaultPublicRoute:
-    Type: AWS::EC2::Route
-    DependsOn: InternetGatewayAttachment
-    Properties:
-      RouteTableId: !Ref PublicRouteTable
-      DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: !Ref InternetGateway
-  PublicSubnetRouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      RouteTableId: !Ref PublicRouteTable
-      SubnetId: !Ref PublicSubnet
 
   ################## INSTANCE #####################
   EKSC9InstanceProfile:
@@ -362,60 +636,28 @@ Resources:
       Roles:
       - eks-admin
 
+  EKSC9PInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    DependsOn: EKSC9PRole
+    Properties:
+      Path: "/"
+      Roles:
+      - challenge-participant
+
   EKSC9Instance:
     Description: "-"
     Type: AWS::Cloud9::EnvironmentEC2
     Properties:
       Name: Cloud9-IDE
       Description: AWS Cloud9 instance for EKS
+      ImageId: amazonlinux-2-x86_64
       AutomaticStopTimeMinutes: 3600
       SubnetId: !Ref PublicSubnet
-      ImageId: !Ref EKSC9Image
       InstanceType:
         Ref: EKSC9InstanceType
-      OwnerArn: !Sub 'arn:aws:sts::${AWS::AccountId}:assumed-role/${LabUserRoleName}/team-console'
+      OwnerArn: !Sub arn:aws:sts::${AWS::AccountId}:assumed-role/${LabUserRoleName}/team-console
       Tags:
       - Key: "run"
         Value: "aws s3 cp s3://public-bucket/prepfile.sh ."
 
-  MyTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      AttributeDefinitions:
-      - AttributeName: id
-        AttributeType: S
-      - AttributeName: customerId
-        AttributeType: S
-      KeySchema:
-      - AttributeName: id
-        KeyType: HASH
-      BillingMode: PAY_PER_REQUEST
-      TableName: eks-challenge-carts
-      GlobalSecondaryIndexes:
-      - IndexName: idx_global_customerId
-        KeySchema:
-        - AttributeName: customerId
-          KeyType: HASH
-        Projection:
-          ProjectionType: ALL
-  DynamoDBManagedPolicy:
-    Type: 'AWS::IAM::ManagedPolicy'
-    Properties:
-      ManagedPolicyName: eks-gameday-carts-dynamo-policy
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-        - Effect: Allow
-          Action:
-          - dynamodb:PutItem
-          - dynamodb:UpdateItem
-          - dynamodb:DeleteItem
-          - dynamodb:BatchWriteItem
-          - dynamodb:GetItem
-          - dynamodb:BatchGetItem
-          - dynamodb:Scan
-          - dynamodb:Query
-          - dynamodb:ConditionCheckIte
-          Resource:
-          - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/eks-challenge-carts'
-          - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/eks-challenge-carts/index/*'
+
